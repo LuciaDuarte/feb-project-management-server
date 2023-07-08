@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const User = require('../models/User.model');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { isAuthenticated } = require('./../middleware/jwt.middleware.js');
+// const isAuthenticated = require('../middleware/firebase.middleware');
+const auth = require('../config/firebase.config');
 
 const saltRounds = 10;
 
@@ -79,16 +79,19 @@ router.post('/login', async (req, res, next) => {
     const isPasswordCorrect = bcrypt.compareSync(password, user.password);
 
     if (isPasswordCorrect) {
-      // create an object that will be set as the JWT payload
-      // DO NOT SEND THE PASSWORD!
-      const payload = { _id: user._id, email: user.email, name: user.name };
+      // Create Custom Token using Firebase
+      const authToken = await auth.createCustomToken(user._id.toString(), {
+        _id: user._id,
+        email: user.email,
+        name: user.name
+      });
 
       // Create and sign the JWT
       // we pass the user payload and the token secret defined in the .env
-      const authToken = jwt.sign(payload, process.env.TOKEN_SECRET, {
-        algorithm: 'HS256', // the algorithm we want to use to encrypt, default is HS256
-        expiresIn: '6h' // TTL - time to live of the JWT
-      });
+      // const authToken = jwt.sign(payload, process.env.TOKEN_SECRET, {
+      //   algorithm: 'HS256', // the algorithm we want to use to encrypt, default is HS256
+      //   expiresIn: '6h' // TTL - time to live of the JWT
+      // });
 
       // send the token as the response
       res.status(200).json({ authToken: authToken });
@@ -101,15 +104,41 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
-// Verify - used to verify JWT stored on the client
-router.get('/verify', isAuthenticated, (req, res, next) => {
-  // If JWT token is valid the payload gets decoded by the
-  // isAuthenticated middleware and made available on `req.payload`
-  // console.log('req.payload', req.payload);
+// Login Google - Checks if user already exists, creates it otherwise
+router.post('/signup-google', async (req, res, next) => {
+  const { email, name } = req.body;
+  try {
+    // check if all parameters have been provided
+    if (email === '' || name === '') {
+      return res.status(400).json({ message: 'All fields are mandatory' });
+    }
 
-  // Send back the object with user data
-  // previously set as the token payload
-  res.json(req.payload);
+    const user = await User.findOne({ email });
+    if (user) {
+      return res.json({ message: 'User already exists' });
+    }
+
+    // Creating the new user
+    await User.create({
+      email,
+      name
+    });
+    res.json({ message: 'User created successfully' });
+  } catch (error) {
+    console.log('An error occurred login the user', error);
+    next(error);
+  }
 });
+
+// // Verify - used to verify JWT stored on the client
+// router.get('/verify', isAuthenticated, (req, res, next) => {
+//   // If JWT token is valid the payload gets decoded by the
+//   // isAuthenticated middleware and made available on `req.payload`
+//   console.log('req.payload', req.payload);
+
+//   // Send back the object with user data
+//   // previously set as the token payload
+//   res.json(req.payload);
+// });
 
 module.exports = router;

@@ -9,7 +9,8 @@ require('./db');
 // https://www.npmjs.com/package/express
 const express = require('express');
 
-const { isAuthenticated } = require('./middleware/jwt.middleware');
+// const { isAuthenticated } = require('./middleware/jwt.middleware');
+const isAuthenticated = require('./middleware/firebase.middleware');
 
 const app = express();
 
